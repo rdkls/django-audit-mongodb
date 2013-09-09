@@ -115,7 +115,7 @@ def _coerce_to_bson_compatible(value):
     elif isinstance(value, date) and not isinstance(value, datetime):
         return datetime.fromordinal(value.toordinal())
     
-    return value
+    return str(value)
 
 def _coerce_datum_to_model_types(model_class_or_inst, field, value):
     """
