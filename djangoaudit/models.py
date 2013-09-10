@@ -101,6 +101,7 @@ def _get_params_from_model(model):
 def _coerce_dict_to_bson_compatible(dikt):
     for k in dikt.keys():
         dikt[k] = _coerce_to_bson_compatible(dikt[k])
+    return dikt
 
 def _coerce_to_bson_compatible(value):
     """
@@ -300,7 +301,8 @@ class AuditedModel(Model):
         # We can't just get the attribute directly off the instance here
         # because we need to ensure it is of the same type as the initial
         # value. To do this we use the field's `to_python` method:
-        field_values[str(getattr(self, field)) for field in self.log_fields]
+        for field in self.log_fields:
+            final_values[field] = getattr(self, field)
         
         # need to actually save the model here to ensure pk for the auditing
         super(AuditedModel, self).save(*args, **kwargs)
