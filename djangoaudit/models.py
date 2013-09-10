@@ -22,7 +22,7 @@ from logging import getLogger
 
 from django.db.models.base import ModelBase, Model
 from django.db.models.fields import DecimalField
-
+from django.db.models.loading import get_models
 
 from djangoaudit.connection import *
 
@@ -98,6 +98,9 @@ def _get_params_from_model(model):
                 object_model=model._meta.object_name,
                 object_pk=model.pk)
     
+def _coerce_dict_to_bson_compatible(dikt):
+    for k in dikt.keys():
+        dikt[k] = _coerce_to_bson_compatible(dikt[k])
 
 def _coerce_to_bson_compatible(value):
     """
@@ -115,7 +118,11 @@ def _coerce_to_bson_compatible(value):
     elif isinstance(value, date) and not isinstance(value, datetime):
         return datetime.fromordinal(value.toordinal())
     
-    return str(value)
+    # If it's a Django model, cast to String
+    if type(value) in get_models():
+        value = str(value)
+
+    return value
 
 def _coerce_datum_to_model_types(model_class_or_inst, field, value):
     """
@@ -212,6 +219,7 @@ def _audit_model(model, initial_values, final_values, operator=None, notes=None,
     
     # Write out the document and return it's DB id:
     try:
+        audit = _coerce_dict_to_bson_compatible(audit)
         return AUDITING_COLLECTION().insert(audit)
     except MongoConnectionError, exc:
         _LOGGER.critical("Error while writing document to collection: %s "
@@ -289,20 +297,15 @@ class AuditedModel(Model):
                 
         final_values = {}
         
-        for field in self.log_fields:
-            # We can't just get the attribute directly off the instance here
-            # because we need to ensure it is of the same type as the initial
-            # value. To do this we use the field's `to_python` method:
-            field_inst = self._meta.get_field_by_name(field)[0]
-            
-            final_values[field] = field_inst.to_python(field_inst
-                                                       .value_from_object(self))
+        # We can't just get the attribute directly off the instance here
+        # because we need to ensure it is of the same type as the initial
+        # value. To do this we use the field's `to_python` method:
+        field_values[str(getattr(self, field)) for field in self.log_fields]
         
         # need to actually save the model here to ensure pk for the auditing
         super(AuditedModel, self).save(*args, **kwargs)
             
-        _audit_model(self, init_values, final_values, 
-                    **self._audit_info)
+        _audit_model(self, init_values, final_values, **self._audit_info)
         
     def delete(self, *args, **kwargs):
         """
@@ -327,8 +330,7 @@ class AuditedModel(Model):
         else:
             notes = "%s\n%s" % (delete_note, notes)
             
-        _audit_model(self, initial_values, final_values,
-                    self._audit_info['operator'], notes)
+        _audit_model(self, initial_values, final_values, self._audit_info['operator'], notes)
         
         super(AuditedModel, self).delete(*args, **kwargs)
     
