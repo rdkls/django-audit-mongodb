@@ -237,17 +237,17 @@ class AuditedModelMeta(ModelBase):
         
         new_class = super(AuditedModelMeta, cls).__new__(cls, name, bases, attrs)
         
-        log_fields = new_class.log_fields
-        
-        if log_fields:
+        if new_class.log_fields:
             # Raise an exception if we're trying to log a field which doesn't
             # exist on the model:
             defined_fields = [f.name for f in new_class._meta.fields]
-            
-            for field in log_fields:
+            for field in new_class.log_fields:
                 if field not in defined_fields:
                     raise AttributeError("Cannot log data for %r as it does not"
                                          " exist on the model" % field)
+        else:
+            # Default - Log all
+            new_class.log_fields = [f.name for f in new_class._meta.fields]
         
         return new_class
         
