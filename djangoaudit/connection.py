@@ -22,7 +22,8 @@ from logging import getLogger
 
 from django.conf import settings
 
-from pymongo.connection import Connection
+#from pymongo.connection import Connection
+import pymongo
 from pymongo.errors import ConnectionFailure, AutoReconnect
 
 __all__ = ["MONGO_CONNECTION", "MongoConnectionError"]
@@ -43,7 +44,7 @@ class MongoConnectionError(Exception):
 class MongoConnection(object):
     """A wrapper around PyMongo's connection to MongoDB"""
     
-    def __init__(self, host, port):
+    def __init__(self, host, port, **kwargs):
         """
         Startup a connection to MongoDB on ``host`` and ``port``
         
@@ -55,7 +56,7 @@ class MongoConnection(object):
         """
         self.host = host
         self.port = port
-        
+        self.connectTimeoutMS = getattr(settings, 'MONGO_CONNECT_TIMEOUT_MS', 2000)
         self.connection = None
         self.connect()
         
@@ -65,7 +66,7 @@ class MongoConnection(object):
         """Make the connection to MongoDB."""
         
         try:
-            self.connection = Connection(host=self.host, port=self.port)
+            self.connection = pymongo.MongoClient(self.host, self.port, connectTimeoutMS=self.connectTimeoutMS) #Connection(host=self.host, port=self.port)
             _LOGGER.debug('Successfully connection to MongoDB on %s:%d' %
                           (self.host, self.port))
         except AutoReconnect, exc:
