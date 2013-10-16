@@ -199,6 +199,11 @@ def _audit_model(model, initial_values, final_values, operator=None, notes=None,
     
     changes = False
     for key, final_value in final_values.iteritems():
+        # If the value has an attribute PK, expect it's a django model and we should log that too
+        try:
+            audit['%s_pk' % key] = getattr(final_value, 'pk')
+        except AttributeError, e:
+            pass
         initial_value = initial_values.get(key)
         # TODO: Can this be simplified? Seems to break the tests by doing so
         if initial_value is None and final_value is not None:
